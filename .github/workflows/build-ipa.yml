@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish a GitHub Release
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -15,6 +20,11 @@ jobs:
 
       - name: Show Xcode version
         run: xcodebuild -version
+
+      - name: Verify config serialization and file installation
+        run: |
+          swiftc -D GAME_CONFIG_TESTS ThreeOneOSFive/helpers/GameConfigFile.swift tests/GameConfigFileTests.swift -o "$RUNNER_TEMP/game-config-tests"
+          "$RUNNER_TEMP/game-config-tests"
 
       - name: List targets and schemes
         run: xcodebuild -list -project ThreeOneOSFive.xcodeproj 2>&1 || true
@@ -64,7 +74,7 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}

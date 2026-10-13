@@ -76,6 +76,8 @@
 		'3105L204' = {isa = PBXBuildFile; fileRef = 3105L104; };
 		'3105L205' = {isa = PBXBuildFile; fileRef = 3105L105; };
 		CC7544ECA5436E270078D289 /* Assembly-CSharp-patch.bytes in Resources */ = {isa = PBXBuildFile; fileRef = AC654210B5A9578E5024C62C /* Assembly-CSharp-patch.bytes */; };
+		3105M200 = {isa = PBXBuildFile; fileRef = 3105M100; };
+		3105M201 = {isa = PBXBuildFile; fileRef = 3105M101; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -166,6 +168,8 @@
 		'3105L104' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositorySourcesView.swift; sourceTree = "<group>"; };
 		'3105L105' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryPresentationSupport.swift; sourceTree = "<group>"; };
 		AC654210B5A9578E5024C62C /* Assembly-CSharp-patch.bytes */ = {isa = PBXFileReference; lastKnownFileType = None; name = "Assembly-CSharp-patch.bytes"; path = "ThreeOneOSFive/Assembly-CSharp-patch.bytes"; sourceTree = SOURCE_ROOT; };
+		3105M100 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameConfigFile.swift; sourceTree = "<group>"; };
+		3105M101 = {isa = PBXFileReference; lastKnownFileType = text.json; path = localConfig.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -191,6 +195,7 @@
 		'3105A401' = {
 			isa = PBXGroup;
 			children = (
+				3105M101,
 				3105A050,
 				3105A060,
 				3105A020,
@@ -252,6 +257,7 @@
 		'3105A405' = {
 			isa = PBXGroup;
 			children = (
+				3105M100,
 				3105A099,
 				3105A104,
 				3105A108,
@@ -373,6 +379,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3105M201,
 				3105A211,
 				3105A228,
 				CC7544ECA5436E270078D289 /* Assembly-CSharp-patch.bytes in Resources */,
@@ -387,6 +394,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3105A200,
+				3105M200,
 				3105A201,
 				3105A203,
 				3105A204,

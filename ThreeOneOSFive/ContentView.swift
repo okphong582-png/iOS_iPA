@@ -7,6 +7,7 @@ import NetworkExtension
 class MeoUIState: ObservableObject {
     static let shared = MeoUIState()
     let core = MeoCore.shared()
+    private var activeBundleID = "com.dts.freefireth"
 
     @Published var isAuthed: Bool = true
     @Published var authError: String? = nil
@@ -21,6 +22,9 @@ class MeoUIState: ObservableObject {
     @Published var espHealth: Bool = false
     @Published var espDistance: Bool = false
     @Published var espSkeleton: Bool = false
+    @Published var espTracer: Bool = false
+    @Published var testCodePatch: Bool = true
+    @Published var configError: String?
 
     @Published var aimEnabled: Bool = false
     @Published var aimSystemEnabled: Bool = false
@@ -41,6 +45,7 @@ class MeoUIState: ObservableObject {
         core.onTokenRefreshed = { [weak self] in
             DispatchQueue.main.async {
                 self?.syncFromCore()
+                if let self { self.loadGameConfig(bundleID: self.activeBundleID) }
                 self?.isAuthed = true
             }
         }
@@ -59,6 +64,7 @@ class MeoUIState: ObservableObject {
         espHealth = core.espHealth
         espDistance = core.espDistance
         espSkeleton = core.espSkeleton
+        espTracer = core.espTracer
 
         aimEnabled = core.aimEnabled
         aimSystemEnabled = core.aimSystemEnabled
@@ -69,7 +75,63 @@ class MeoUIState: ObservableObject {
         headshotRate = core.headshotRate
     }
 
-    func pushToCore(bundleID: String) {
+    private var configSettings: [String: Any] {
+        [
+            "EspMaster": espMaster, "EspBox": espBox, "EspLine": espLine,
+            "EspName": espName, "EspHealth": espHealth, "EspDistance": espDistance,
+            "EspSkeleton": espSkeleton, "EspTracer": espTracer, "AimEnabled": aimEnabled,
+            "AimSystemEnabled": aimSystemEnabled, "EspFov": espFov, "NoRecoil": noRecoil,
+            "AimTarget": aimTarget, "FovSize": fovSize, "HeadshotRate": headshotRate,
+            "system_active": systemActive, "testCodePatch": testCodePatch
+        ]
+    }
+
+    func loadGameConfig(bundleID: String) {
+        activeBundleID = bundleID
+        do {
+            let template = try GameConfigService.resource("localConfig", fileExtension: "json")
+            let config = try GameConfigService.withDocuments(bundleID: bundleID) {
+                try GameConfigFile.load(documents: $0, template: template)
+            }
+            espMaster = config["EspMaster"] as? Bool ?? false
+            espBox = config["EspBox"] as? Bool ?? false
+            espLine = config["EspLine"] as? Bool ?? false
+            espName = config["EspName"] as? Bool ?? false
+            espHealth = config["EspHealth"] as? Bool ?? false
+            espDistance = config["EspDistance"] as? Bool ?? false
+            espSkeleton = config["EspSkeleton"] as? Bool ?? false
+            espTracer = config["EspTracer"] as? Bool ?? false
+            aimEnabled = config["AimEnabled"] as? Bool ?? false
+            aimSystemEnabled = config["AimSystemEnabled"] as? Bool ?? false
+            espFov = config["EspFov"] as? Bool ?? false
+            noRecoil = config["NoRecoil"] as? Bool ?? false
+            systemActive = config["system_active"] as? Bool ?? true
+            testCodePatch = config["testCodePatch"] as? Bool ?? true
+            aimTarget = (config["AimTarget"] as? NSNumber)?.intValue ?? 0
+            fovSize = (config["FovSize"] as? NSNumber)?.floatValue ?? 60
+            headshotRate = (config["HeadshotRate"] as? NSNumber)?.floatValue ?? 60
+        } catch {
+            log("config: \(error.localizedDescription)")
+        }
+    }
+
+    @discardableResult
+    func pushToCore(bundleID: String, install: Bool = false) -> Bool {
+        do {
+            let template = try GameConfigService.resource("localConfig", fileExtension: "json")
+            try GameConfigService.withDocuments(bundleID: bundleID) { documents in
+                if install {
+                    try GameConfigFile.install(configSettings, documents: documents, template: template,
+                        patch: GameConfigService.resource("Assembly-CSharp-patch", fileExtension: "bytes"))
+                } else {
+                    try GameConfigFile.save(configSettings, documents: documents, template: template)
+                }
+            }
+        } catch {
+            configError = error.localizedDescription
+            loadGameConfig(bundleID: bundleID)
+            return false
+        }
         core.espMaster = espMaster
         core.espBox = espBox
         core.espLine = espLine
@@ -77,6 +139,7 @@ class MeoUIState: ObservableObject {
         core.espHealth = espHealth
         core.espDistance = espDistance
         core.espSkeleton = espSkeleton
+        core.espTracer = espTracer
 
         core.aimEnabled = aimEnabled
         core.aimSystemEnabled = aimSystemEnabled
@@ -86,7 +149,7 @@ class MeoUIState: ObservableObject {
         core.fovSize = fovSize
         core.headshotRate = headshotRate
 
-        core.saveAndSyncConfig(forBundleID: bundleID)
+        return true
     }
 
     func startHeartbeat() { core.startHeartbeat() }
@@ -175,7 +238,8 @@ struct ContentView: View {
                                     let label = (id == "ff") ? "Free Fire" : "Free Fire MAX"
                                     Button(action: {
                                         gameTab = id
-                                        if hasInjected { state.pushToCore(bundleID: selectedBundleID) }
+                                        state.loadGameConfig(bundleID: selectedBundleID)
+                                        refreshInstallStatus()
                                     }) {
                                         Text(label)
                                             .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -228,11 +292,20 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            state.syncFromCore()
-            hasInjected = MeoCore.shared().isModInjected(forBundleID: selectedBundleID)
+            state.loadGameConfig(bundleID: selectedBundleID)
+            refreshInstallStatus()
             checkDnsStatus()
         }
+        .onChange(of: state.configError) { message in
+            if let message {
+                activeAlert = ActiveAlertItem(title: "Không ghi được cấu hình", message: message,
+                    isDestructive: false, action: nil)
+                state.configError = nil
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            state.loadGameConfig(bundleID: selectedBundleID)
+            refreshInstallStatus()
             checkDnsStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NEDNSSettingsConfigurationDidChange)) { _ in
@@ -266,6 +339,19 @@ struct ContentView: View {
                         ))
                         .toggleStyle(SlimToggleStyle())
                         .labelsHidden()
+                    }
+                }
+
+                CardView(title: "CẤU HÌNH", icon: "switch.2") {
+                    VStack(spacing: 14) {
+                        ToggleRow(label: "Hệ thống hoạt động", icon: "power", on: Binding(
+                            get: { state.systemActive },
+                            set: { state.systemActive = $0; state.pushToCore(bundleID: selectedBundleID) }
+                        ))
+                        ToggleRow(label: "Test Code Patch", icon: "checkmark.seal", on: Binding(
+                            get: { state.testCodePatch },
+                            set: { state.testCodePatch = $0; state.pushToCore(bundleID: selectedBundleID) }
+                        ))
                     }
                 }
 
@@ -405,6 +491,11 @@ struct ContentView: View {
                         ToggleRow(label: "Hiện Khung Xương (Skeleton)", icon: "figure.walk", on: Binding(
                             get: { state.espSkeleton },
                             set: { val in state.espSkeleton = val; state.pushToCore(bundleID: selectedBundleID) }
+                        ))
+
+                        ToggleRow(label: "Tracer", icon: "location", on: Binding(
+                            get: { state.espTracer },
+                            set: { state.espTracer = $0; state.pushToCore(bundleID: selectedBundleID) }
                         ))
                     }
                 }
@@ -833,26 +924,38 @@ struct ContentView: View {
     }
 
     // MARK: - GUI Actions (Calling MeoCore in libmeo.a)
+    private func refreshInstallStatus() {
+        hasInjected = (try? GameConfigService.withDocuments(bundleID: selectedBundleID) {
+            GameConfigFile.isInstalled(documents: $0)
+        }) ?? false
+    }
+
     private func uninstallMod() {
-        MeoCore.shared().uninstallModFromGame(withBundleID: selectedBundleID)
-        hasInjected = false
-        state.stopHeartbeat()
+        do {
+            try GameConfigService.withDocuments(bundleID: selectedBundleID) { documents in
+                for name in [GameConfigFile.patchName, GameConfigFile.configName] {
+                    let file = documents.appendingPathComponent(name)
+                    if FileManager.default.fileExists(atPath: file.path) {
+                        try FileManager.default.removeItem(at: file)
+                    }
+                }
+            }
+            hasInjected = false
+            state.stopHeartbeat()
+        } catch {
+            state.configError = error.localizedDescription
+            refreshInstallStatus()
+        }
     }
 
     private func injectGame() {
         if MeoCore.isDebuggerAttached() { return }
         guard state.isAuthed else { return }
-        state.pushToCore(bundleID: selectedBundleID)
         isInjecting = true
-        MeoCore.shared().injectToGame(withBundleID: selectedBundleID) { success, error in
-            DispatchQueue.main.async {
-                self.isInjecting = false
-                if success {
-                    self.hasInjected = true
-                    self.currentTab = "Function"
-                }
-            }
-        }
+        let success = state.pushToCore(bundleID: selectedBundleID, install: true)
+        isInjecting = false
+        refreshInstallStatus()
+        if success { currentTab = "Function" }
     }
 
     private func checkDnsStatus() {
