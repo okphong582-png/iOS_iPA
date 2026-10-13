@@ -23,7 +23,7 @@ jobs:
         run: |
           xcodebuild build \
             -project ThreeOneOSFive.xcodeproj \
-            -target 3105 \
+            -scheme 3105 \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
@@ -32,8 +32,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            ENABLE_BITCODE=NO \
-            2>&1
+            ENABLE_BITCODE=NO
 
       - name: Find built .app
         run: |
