@@ -13,50 +13,49 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Select Xcode version
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Install xcpretty
-        run: gem install xcpretty --no-document
+      - name: List targets and schemes
+        run: xcodebuild -list -project ThreeOneOSFive.xcodeproj 2>&1 || true
 
-      - name: List available schemes
+      - name: Build app (no signing)
         run: |
-          xcodebuild -list -project ThreeOneOSFive.xcodeproj
-
-      - name: Build archive (no signing)
-        run: |
-          xcodebuild archive \
+          xcodebuild build \
             -project ThreeOneOSFive.xcodeproj \
-            -scheme ThreeOneOSFive \
+            -target 3105 \
             -configuration Release \
-            -destination "generic/platform=iOS" \
-            -archivePath "$RUNNER_TEMP/ThreeOneOSFive.xcarchive" \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             ENABLE_BITCODE=NO \
-            | xcpretty || true
-          echo "--- Archive contents ---"
-          find "$RUNNER_TEMP/ThreeOneOSFive.xcarchive" -name "*.app" 2>/dev/null || echo "No .app found"
-          ls -la "$RUNNER_TEMP/ThreeOneOSFive.xcarchive/Products/Applications/" 2>/dev/null || echo "Applications folder not found"
+            2>&1
+
+      - name: Find built .app
+        run: |
+          echo "=== Searching for .app ==="
+          find "$RUNNER_TEMP/DerivedData" -name "*.app" -not -path "*/iphoneos-simulator/*" 2>/dev/null | head -20
 
       - name: Package IPA (unsigned)
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/ThreeOneOSFive.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -1)
-          echo "Found app: $APP_PATH"
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app found in archive!"
+            APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" 2>/dev/null | grep -v simulator | head -1)
+          fi
+          echo "App path: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app found!"
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -r "$APP_PATH" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -qr MeoMeo.ipa Payload/
-          echo "IPA created: $(du -sh MeoMeo.ipa)"
+          echo "IPA size: $(du -sh MeoMeo.ipa)"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -74,7 +73,7 @@ jobs:
           body: |
             🐾 **MeoMeo — Free Fire VIP Mod Launcher**
             
-            Build tự động từ commit: `${{ github.sha }}`
+            Build từ commit: `${{ github.sha }}`
             
             > ⚠️ IPA chưa ký — cần ký lại bằng AltStore / SideStore / TrollStore trước khi cài.
           files: ${{ runner.temp }}/MeoMeo.ipa
