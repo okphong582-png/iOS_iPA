@@ -19,6 +19,13 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Install xcpretty
+        run: gem install xcpretty --no-document
+
+      - name: List available schemes
+        run: |
+          xcodebuild -list -project ThreeOneOSFive.xcodeproj
+
       - name: Build archive (no signing)
         run: |
           xcodebuild archive \
@@ -26,21 +33,30 @@ jobs:
             -scheme ThreeOneOSFive \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath $RUNNER_TEMP/ThreeOneOSFive.xcarchive \
+            -archivePath "$RUNNER_TEMP/ThreeOneOSFive.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            | xcpretty
+            ENABLE_BITCODE=NO \
+            | xcpretty || true
+          echo "--- Archive contents ---"
+          find "$RUNNER_TEMP/ThreeOneOSFive.xcarchive" -name "*.app" 2>/dev/null || echo "No .app found"
+          ls -la "$RUNNER_TEMP/ThreeOneOSFive.xcarchive/Products/Applications/" 2>/dev/null || echo "Applications folder not found"
 
       - name: Package IPA (unsigned)
         run: |
-          mkdir -p $RUNNER_TEMP/Payload
-          cp -r "$RUNNER_TEMP/ThreeOneOSFive.xcarchive/Products/Applications/3105.app" \
-                "$RUNNER_TEMP/Payload/3105.app"
-          cd $RUNNER_TEMP
+          APP_PATH=$(find "$RUNNER_TEMP/ThreeOneOSFive.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -1)
+          echo "Found app: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app found in archive!"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
           zip -qr MeoMeo.ipa Payload/
-          echo "IPA created at $RUNNER_TEMP/MeoMeo.ipa"
+          echo "IPA created: $(du -sh MeoMeo.ipa)"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
